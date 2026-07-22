@@ -86,9 +86,16 @@ const appointmentSchema = new Schema(
     },
   },
   {
-    timestamps: true,
-    versionKey: false,
+  timestamps: true,
+  versionKey: false,
+  toJSON: {
+    transform: (document, returnedObject) => {
+      delete returnedObject.cancellationTokenHash;
+
+      return returnedObject;
+    },
   },
+},
 );
 
 appointmentSchema.index({

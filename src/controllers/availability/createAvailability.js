@@ -1,6 +1,6 @@
 import { Availability } from "../../models/availability.js";
 
-const SLOT_DURATION_MS = 60 * 60 * 1000;
+const SLOT_DURATION_MS = 30 * 60 * 1000;
 
 export const createAvailability = async (req, res, next) => {
   try {

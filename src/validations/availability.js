@@ -8,3 +8,11 @@ export const createAvailabilitySchema = {
       .required(),
   }),
 };
+
+export const deleteAvailabilitySchema = {
+  [Segments.PARAMS]: Joi.object({
+    slotId: Joi.string()
+      .pattern(/^[0-9a-fA-F]{24}$/)
+      .required(),
+  }),
+};
