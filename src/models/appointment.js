@@ -56,6 +56,13 @@ const appointmentSchema = new Schema(
       default: null,
     },
 
+    blockedAvailabilities: [
+  {
+    type: Schema.Types.ObjectId,
+    ref: "Availability",
+  },
+],
+
     notes: {
       type: String,
       trim: true,

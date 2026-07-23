@@ -1,4 +1,5 @@
 import { Availability } from "../../models/availability.js";
+import { Appointment } from "../../models/appointment.js";
 
 const SLOT_DURATION_MS = 30 * 60 * 1000;
 
@@ -34,6 +35,25 @@ export const createAvailability = async (req, res, next) => {
       error.status = 409;
       throw error;
     }
+
+    const overlappingAppointment =
+  await Appointment.findOne({
+    status: "scheduled",
+    startAt: {
+      $lt: endAt,
+    },
+    endAt: {
+      $gt: startAt,
+    },
+  });
+
+if (overlappingAppointment) {
+  const error = new Error(
+    "This time overlaps with a scheduled appointment",
+  );
+  error.status = 409;
+  throw error;
+}
 
     const slot = await Availability.create({
       startAt,
