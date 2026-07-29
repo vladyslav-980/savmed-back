@@ -206,3 +206,46 @@ export const createDoctorAppointmentCancelledEmail = ({
     `,
   };
 };
+
+export const createClientAppointmentCancelledByDoctorEmail = ({
+  clientName,
+  type,
+  startAt,
+  endAt,
+  cancellationReason,
+}) => {
+  const safeClientName = escapeHtml(clientName);
+
+  const safeCancellationReason = escapeHtml(
+    cancellationReason || "Причину не вказано",
+  );
+
+  const appointmentType =
+    appointmentTypeLabels[type] || "Медичний прийом";
+
+  return {
+    subject: `Запис скасовано лікарем — ${appointmentType}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6;">
+        <h1 style="color: #dc2626;">Ваш запис скасовано</h1>
+
+        <p>Вітаємо, ${safeClientName}.</p>
+
+        <p>
+          На жаль, лікар скасував ваш запис у SavMed.
+        </p>
+
+        <ul>
+          <li><strong>Послуга:</strong> ${appointmentType}</li>
+          <li><strong>Початок:</strong> ${formatDateTime(startAt)}</li>
+          <li><strong>Завершення:</strong> ${formatDateTime(endAt)}</li>
+          <li><strong>Причина:</strong> ${safeCancellationReason}</li>
+        </ul>
+
+        <p>
+          Ви зможете обрати інший вільний час на сайті SavMed.
+        </p>
+      </div>
+    `,
+  };
+};

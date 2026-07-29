@@ -2,6 +2,10 @@ import mongoose from "mongoose";
 
 import { Appointment } from "../../models/appointment.js";
 import { Availability } from "../../models/availability.js";
+import { sendEmail } from "../../services/emailService.js";
+import {
+  createClientAppointmentCancelledByDoctorEmail,
+} from "../../templates/appointmentEmails.js";
 
 export const cancelAppointmentByDoctor = async (
   req,
@@ -9,6 +13,10 @@ export const cancelAppointmentByDoctor = async (
   next,
 ) => {
   const session = await mongoose.startSession();
+
+  const notificationStatus = {
+    client: false,
+  };
 
   try {
     const { appointmentId } = req.params;
@@ -26,7 +34,9 @@ export const cancelAppointmentByDoctor = async (
         const error = new Error(
           "Scheduled appointment not found",
         );
+
         error.status = 404;
+
         throw error;
       }
 
@@ -83,10 +93,35 @@ export const cancelAppointmentByDoctor = async (
       cancelledAppointment = appointment;
     });
 
+    try {
+      const clientEmailContent =
+        createClientAppointmentCancelledByDoctorEmail({
+          clientName: cancelledAppointment.clientName,
+          type: cancelledAppointment.type,
+          startAt: cancelledAppointment.startAt,
+          endAt: cancelledAppointment.endAt,
+          cancellationReason:
+            cancelledAppointment.cancellationReason,
+        });
+
+      await sendEmail({
+        to: cancelledAppointment.clientEmail,
+        ...clientEmailContent,
+      });
+
+      notificationStatus.client = true;
+    } catch (emailError) {
+      console.error(
+        "Doctor cancelled the appointment, but client email failed:",
+        emailError.message,
+      );
+    }
+
     res.status(200).json({
       status: "success",
       message: "Appointment cancelled successfully",
       data: cancelledAppointment,
+      notifications: notificationStatus,
     });
   } catch (error) {
     next(error);
