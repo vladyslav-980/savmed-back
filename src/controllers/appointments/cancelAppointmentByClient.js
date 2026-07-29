@@ -3,6 +3,11 @@ import mongoose from "mongoose";
 
 import { Appointment } from "../../models/appointment.js";
 import { Availability } from "../../models/availability.js";
+import { sendEmail } from "../../services/emailService.js";
+import {
+  createClientAppointmentCancelledEmail,
+  createDoctorAppointmentCancelledEmail,
+} from "../../templates/appointmentEmails.js";
 
 export const cancelAppointmentByClient = async (
   req,
@@ -10,6 +15,11 @@ export const cancelAppointmentByClient = async (
   next,
 ) => {
   const session = await mongoose.startSession();
+
+  const notificationStatus = {
+    client: false,
+    doctor: false,
+  };
 
   try {
     const { token, reason } = req.body;
@@ -32,7 +42,9 @@ export const cancelAppointmentByClient = async (
         const error = new Error(
           "Cancellation token is invalid or has already been used",
         );
+
         error.status = 404;
+
         throw error;
       }
 
@@ -40,7 +52,9 @@ export const cancelAppointmentByClient = async (
         const error = new Error(
           "An appointment that has already started cannot be cancelled",
         );
+
         error.status = 409;
+
         throw error;
       }
 
@@ -76,7 +90,9 @@ export const cancelAppointmentByClient = async (
           const error = new Error(
             "The related availability slot could not be restored",
           );
+
           error.status = 409;
+
           throw error;
         }
       }
@@ -84,10 +100,70 @@ export const cancelAppointmentByClient = async (
       cancelledAppointment = appointment;
     });
 
+    try {
+      const clientEmailContent =
+        createClientAppointmentCancelledEmail({
+          clientName: cancelledAppointment.clientName,
+          type: cancelledAppointment.type,
+          startAt: cancelledAppointment.startAt,
+          endAt: cancelledAppointment.endAt,
+        });
+
+      const doctorEmailContent =
+        createDoctorAppointmentCancelledEmail({
+          clientName: cancelledAppointment.clientName,
+          clientPhone: cancelledAppointment.clientPhone,
+          clientEmail: cancelledAppointment.clientEmail,
+          type: cancelledAppointment.type,
+          startAt: cancelledAppointment.startAt,
+          endAt: cancelledAppointment.endAt,
+          cancellationReason:
+            cancelledAppointment.cancellationReason,
+        });
+
+      const [clientEmailResult, doctorEmailResult] =
+        await Promise.allSettled([
+          sendEmail({
+            to: cancelledAppointment.clientEmail,
+            ...clientEmailContent,
+          }),
+          sendEmail({
+            to: process.env.DOCTOR_EMAIL,
+            ...doctorEmailContent,
+          }),
+        ]);
+
+      notificationStatus.client =
+        clientEmailResult.status === "fulfilled";
+
+      notificationStatus.doctor =
+        doctorEmailResult.status === "fulfilled";
+
+      if (clientEmailResult.status === "rejected") {
+        console.error(
+          "Client cancellation email failed:",
+          clientEmailResult.reason?.message,
+        );
+      }
+
+      if (doctorEmailResult.status === "rejected") {
+        console.error(
+          "Doctor cancellation email failed:",
+          doctorEmailResult.reason?.message,
+        );
+      }
+    } catch (emailError) {
+      console.error(
+        "Appointment was cancelled, but email preparation failed:",
+        emailError.message,
+      );
+    }
+
     res.status(200).json({
       status: "success",
       message: "Appointment cancelled successfully",
       data: cancelledAppointment,
+      notifications: notificationStatus,
     });
   } catch (error) {
     next(error);

@@ -127,3 +127,82 @@ export const createDoctorAppointmentEmail = ({
     `,
   };
 };
+
+export const createClientAppointmentCancelledEmail = ({
+  clientName,
+  type,
+  startAt,
+  endAt,
+}) => {
+  const safeClientName = escapeHtml(clientName);
+
+  const appointmentType =
+    appointmentTypeLabels[type] || "Медичний прийом";
+
+  return {
+    subject: `Запис скасовано — ${appointmentType}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6;">
+        <h1 style="color: #dc2626;">Ваш запис скасовано</h1>
+
+        <p>Вітаємо, ${safeClientName}.</p>
+
+        <p>Ваш запис у SavMed було успішно скасовано.</p>
+
+        <ul>
+          <li><strong>Послуга:</strong> ${appointmentType}</li>
+          <li><strong>Початок:</strong> ${formatDateTime(startAt)}</li>
+          <li><strong>Завершення:</strong> ${formatDateTime(endAt)}</li>
+        </ul>
+
+        <p>
+          Цей час знову доступний для запису інших клієнтів.
+        </p>
+      </div>
+    `,
+  };
+};
+
+export const createDoctorAppointmentCancelledEmail = ({
+  clientName,
+  clientPhone,
+  clientEmail,
+  type,
+  startAt,
+  endAt,
+  cancellationReason,
+}) => {
+  const safeClientName = escapeHtml(clientName);
+  const safeClientPhone = escapeHtml(clientPhone);
+  const safeClientEmail = escapeHtml(clientEmail);
+
+  const safeCancellationReason = escapeHtml(
+    cancellationReason || "Причину не вказано",
+  );
+
+  const appointmentType =
+    appointmentTypeLabels[type] || "Медичний прийом";
+
+  return {
+    subject: `Клієнт скасував запис — ${safeClientName}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6;">
+        <h1 style="color: #dc2626;">Запис скасовано клієнтом</h1>
+
+        <ul>
+          <li><strong>Клієнт:</strong> ${safeClientName}</li>
+          <li><strong>Телефон:</strong> ${safeClientPhone}</li>
+          <li><strong>Email:</strong> ${safeClientEmail}</li>
+          <li><strong>Послуга:</strong> ${appointmentType}</li>
+          <li><strong>Початок:</strong> ${formatDateTime(startAt)}</li>
+          <li><strong>Завершення:</strong> ${formatDateTime(endAt)}</li>
+          <li><strong>Причина:</strong> ${safeCancellationReason}</li>
+        </ul>
+
+        <p>
+          Час прийому знову доступний для запису.
+        </p>
+      </div>
+    `,
+  };
+};
