@@ -6,6 +6,11 @@ import mongoose from "mongoose";
 
 import { Appointment } from "../../models/appointment.js";
 import { Availability } from "../../models/availability.js";
+import { sendEmail } from "../../services/emailService.js";
+import {
+  createClientAppointmentEmail,
+  createDoctorAppointmentEmail,
+} from "../../templates/appointmentEmails.js";
 
 const DURATION_BY_TYPE = {
   consultation: 30,
@@ -23,6 +28,11 @@ export const createAppointmentByDoctor = async (
 
   let appointment;
   let cancellationToken;
+
+  const notificationStatus = {
+    client: false,
+    doctor: false,
+  };
 
   try {
     const {
@@ -58,7 +68,9 @@ export const createAppointmentByDoctor = async (
         const error = new Error(
           "This time overlaps with another appointment",
         );
+
         error.status = 409;
+
         throw error;
       }
 
@@ -79,7 +91,9 @@ export const createAppointmentByDoctor = async (
         const error = new Error(
           "This time conflicts with an unavailable slot",
         );
+
         error.status = 409;
+
         throw error;
       }
 
@@ -146,10 +160,68 @@ export const createAppointmentByDoctor = async (
       }
     });
 
+    try {
+      const clientEmailContent =
+        createClientAppointmentEmail({
+          clientName,
+          type: appointment.type,
+          startAt: appointment.startAt,
+          endAt: appointment.endAt,
+          cancellationToken,
+        });
+
+      const doctorEmailContent =
+        createDoctorAppointmentEmail({
+          clientName,
+          clientPhone,
+          clientEmail,
+          type: appointment.type,
+          startAt: appointment.startAt,
+          endAt: appointment.endAt,
+        });
+
+      const [clientEmailResult, doctorEmailResult] =
+        await Promise.allSettled([
+          sendEmail({
+            to: clientEmail,
+            ...clientEmailContent,
+          }),
+          sendEmail({
+            to: process.env.DOCTOR_EMAIL,
+            ...doctorEmailContent,
+          }),
+        ]);
+
+      notificationStatus.client =
+        clientEmailResult.status === "fulfilled";
+
+      notificationStatus.doctor =
+        doctorEmailResult.status === "fulfilled";
+
+      if (clientEmailResult.status === "rejected") {
+        console.error(
+          "Client email sending failed:",
+          clientEmailResult.reason?.message,
+        );
+      }
+
+      if (doctorEmailResult.status === "rejected") {
+        console.error(
+          "Doctor email sending failed:",
+          doctorEmailResult.reason?.message,
+        );
+      }
+    } catch (emailError) {
+      console.error(
+        "Appointment was created, but email preparation failed:",
+        emailError.message,
+      );
+    }
+
     res.status(201).json({
       status: "success",
       data: appointment,
-      cancellationToken,
+      notifications: notificationStatus,
     });
   } catch (error) {
     next(error);
