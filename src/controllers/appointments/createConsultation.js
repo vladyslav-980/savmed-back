@@ -6,6 +6,11 @@ import mongoose from "mongoose";
 
 import { Appointment } from "../../models/appointment.js";
 import { Availability } from "../../models/availability.js";
+import { sendEmail } from "../../services/emailService.js";
+import {
+  createClientAppointmentEmail,
+  createDoctorAppointmentEmail,
+} from "../../templates/appointmentEmails.js";
 
 export const createConsultation = async (
   req,
@@ -16,6 +21,11 @@ export const createConsultation = async (
 
   let appointment;
   let cancellationToken;
+
+  const notificationStatus = {
+    client: false,
+    doctor: false,
+  };
 
   try {
     const {
@@ -49,7 +59,9 @@ export const createConsultation = async (
         const error = new Error(
           "This consultation time is no longer available",
         );
+
         error.status = 409;
+
         throw error;
       }
 
@@ -87,10 +99,68 @@ export const createConsultation = async (
       });
     });
 
+    try {
+      const clientEmailContent =
+        createClientAppointmentEmail({
+          clientName,
+          type: appointment.type,
+          startAt: appointment.startAt,
+          endAt: appointment.endAt,
+          cancellationToken,
+        });
+
+      const doctorEmailContent =
+        createDoctorAppointmentEmail({
+          clientName,
+          clientPhone,
+          clientEmail,
+          type: appointment.type,
+          startAt: appointment.startAt,
+          endAt: appointment.endAt,
+        });
+
+      const [clientEmailResult, doctorEmailResult] =
+        await Promise.allSettled([
+          sendEmail({
+            to: clientEmail,
+            ...clientEmailContent,
+          }),
+          sendEmail({
+            to: process.env.DOCTOR_EMAIL,
+            ...doctorEmailContent,
+          }),
+        ]);
+
+      notificationStatus.client =
+        clientEmailResult.status === "fulfilled";
+
+      notificationStatus.doctor =
+        doctorEmailResult.status === "fulfilled";
+
+      if (clientEmailResult.status === "rejected") {
+        console.error(
+          "Client email sending failed:",
+          clientEmailResult.reason?.message,
+        );
+      }
+
+      if (doctorEmailResult.status === "rejected") {
+        console.error(
+          "Doctor email sending failed:",
+          doctorEmailResult.reason?.message,
+        );
+      }
+    } catch (emailError) {
+      console.error(
+        "Appointment was created, but email preparation failed:",
+        emailError.message,
+      );
+    }
+
     res.status(201).json({
       status: "success",
       data: appointment,
-      cancellationToken,
+      notifications: notificationStatus,
     });
   } catch (error) {
     next(error);
