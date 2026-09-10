@@ -13,14 +13,31 @@ import healthRouter from "./routes/healthRouter.js";
 
 const app = express();
 
-const frontendUrl =
-  process.env.FRONTEND_URL || "http://localhost:3000";
+const frontendUrls = (
+  process.env.FRONTEND_URLS ||
+  process.env.FRONTEND_URL ||
+  "http://localhost:3000"
+)
+  .split(",")
+  .map((url) => url.trim().replace(/\/$/, ""))
+  .filter(Boolean);
+
+app.set("trust proxy", 1);
 
 app.use(helmet());
 
 app.use(
   cors({
-    origin: frontendUrl,
+    origin(origin, callback) {
+      if (!origin || frontendUrls.includes(origin.replace(/\/$/, ""))) {
+        callback(null, true);
+        return;
+      }
+
+      const error = new Error("Origin is not allowed by CORS");
+      error.status = 403;
+      callback(error);
+    },
     credentials: true,
   }),
 );
